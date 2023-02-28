@@ -1,2 +1,2 @@
 # vaca-lite
-small no-nonsense client status monitoring tool with built-in alerts via telegram 
+small daemon to monitor client status via ssh with minimal dependencies and configuration
