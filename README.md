@@ -5,6 +5,7 @@ ___
 ## Dependencies
 
 - parallel-ssh
+- a functional telegram bot
 
 ## Getting started
 
