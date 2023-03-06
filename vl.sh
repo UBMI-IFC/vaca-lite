@@ -16,7 +16,7 @@ timestamp=$(date +%s)
 
 ######################### Call #######################################
 
-parallel-ssh -h vl.clients  -o free  -i free > /dev/null 2> /dev/null 
+parallel-ssh -h vl.clients  -o free  -i free 2> /dev/null
 # FINAL LOCATION
 # parallel-ssh -h vl.clients  -o /opt/vaca-lite/free  -i free -h
 
@@ -30,7 +30,12 @@ for f in free/*; do
     ramok=1
     success=$(wc -l $f | cut -f 1 -d ' ')
     if [ $success -eq 0 ]; then
-        sshok=0
+      echo "--------" >> $logs/$pc
+      echo ">$timestamp" >> $logs/$pc
+      echo "$pc IS UNREACHABLE" >> $logs/$pc
+      echo "--------"
+      echo "NETWORK ALERT FOR $pc: HOST IS UNREACHABLE"
+
     else
       cat $f | tr -s ' ' > free.tmp
       totmem=$(grep -i 'mem' free.tmp | cut -f 2 -d ' ')
