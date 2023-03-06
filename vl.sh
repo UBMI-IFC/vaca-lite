@@ -13,10 +13,22 @@ source vl.telegram.example
 ######################### Global vars ################################
 
 timestamp=$(date +%s)
+notification=0 
+
+######################### Global functions ###########################
+checkPrevFailInterval()
+{
+    if [ -f $1 ]; then 
+        prevfail=$(grep "<ALERT>" $1 | sed 's/<ALERT>//' | tail -1)
+        echo "$(($timestamp - $prevfail))"
+      else
+        echo "0"
+      fi
+}
 
 ######################### Call #######################################
 
-parallel-ssh -h vl.clients  -o free  -i free 2> /dev/null
+parallel-ssh -h vl.clients  -o free  -i free > /dev/null 2> /dev/null
 # FINAL LOCATION
 # parallel-ssh -h vl.clients  -o /opt/vaca-lite/free  -i free -h
 
@@ -26,16 +38,15 @@ parallel-ssh -h vl.clients  -o free  -i free 2> /dev/null
 # for f in /opt/vaca-lite/freei/*; do
 for f in free/*; do
     pc=$(echo $f | sed 's/^.*\///')
-    sshok=1
-    ramok=1
+    error=1
     success=$(wc -l $f | cut -f 1 -d ' ')
-    if [ $success -eq 0 ]; then
-      echo "--------" >> $logs/$pc
-      echo ">$timestamp" >> $logs/$pc
-      echo "$pc IS UNREACHABLE" >> $logs/$pc
-      echo "--------"
-      echo "NETWORK ALERT FOR $pc: HOST IS UNREACHABLE"
+    logfile=$(echo $logs/$pc)
 
+    if [ $success -eq 0 ]; then
+      echo "--------" >> out.tmp
+      err_msg="NETWORK ALERT FOR $pc"
+      echo $err_msg >> out.tmp
+      error=0
     else
       cat $f | tr -s ' ' > free.tmp
       totmem=$(grep -i 'mem' free.tmp | cut -f 2 -d ' ')
@@ -49,14 +60,13 @@ for f in free/*; do
       rm free.tmp
 
         if [[ $availableMemPerc -lt $available_ram_limit  ||  $usedSwapPerc -gt $swap_limit ]]; then
-            ramok=0
-            echo "--------" >> $logs/$pc
-            echo ">$timestamp" >> $logs/$pc
-            cat $f >> $logs/$pc
-            echo "--------"
-            echo "RAM ALERT FOR $pc"
-            echo "Used swap      = $usedSwapPerc%"
-            echo "Available ram  = $availableMemPerc%"
+            err_msg="RAM ALERT FOR $pc" 
+            echo "--------" >> out.tmp
+            echo "RAM ALERT FOR $pc" >> out.tmp
+            echo "Used swap      = $usedSwapPerc%" >> out.tmp
+            echo "Available ram  = $availableMemPerc" >> out.tmp
+
+            error=0
         else
             # TODO
             # check for prev fail
@@ -64,14 +74,31 @@ for f in free/*; do
             echo "$pc OK!"
         fi
     fi
+
+    if [ $error -eq 0 ]; then
+      interval=$(checkPrevFailInterval $logfile)
+      echo "--------" >> $logfile
+      if [[ $interval -ge $notification_interval  ||  $interval -eq 0 ]]; then
+        echo "<ALERT>$timestamp" >> $logfile
+        notification=1
+      else
+        echo "<log>$timestamp" >> $logfile
+      fi
+      echo $err_msg >> $logfile
+      cat $f >> $logfile
+    fi
+
 done
 
-
 ######################### Notify #####################################
+if [ $notification -eq 1 ]; then
+  URL="https://api.telegram.org/bot$KEY/sendMessage"
+  ALERTMSG=$(cat out.tmp)
+  curl -s --max-time $TIMEOUT -d "chat_id=$USERID&disable_web_page_preview=1&text=VACA INFORMA" $URL > /dev/null
+  curl -s --max-time $TIMEOUT -d "chat_id=$USERID&disable_web_page_preview=1&text=$ALERTMSG" $URL > /dev/null
+fi
+######################## Cleaning######################################
 
-# URL="https://api.telegram.org/bot$KEY/sendMessage"
-# ALERTMSG=$(/usr/games/cowsay  hola)
-# TEXT="${USER} desde  $HOSTNAME dice: $ALERTMSG  :)"
-# curl -s --max-time $TIMEOUT -d "chat_id=$USERID&disable_web_page_preview=1&text=$TEXT" $URL > /dev/null
-# #
-######################## Log ########################################
+if [ -f out.tmp ];then
+  rm out.tmp
+fi
