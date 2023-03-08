@@ -18,14 +18,27 @@ notification=0
 ######################### Global functions ###########################
 checkPrevFailInterval()
 {
-    if [ -f $1 ]; then 
-        prevfail=$(grep "<ALERT>" $1 | sed 's/<ALERT>//' | tail -1)
-        echo "$(($timestamp - $prevfail))"
+    if [ -f $1 ]; then
+        prevalert=$(grep "<ALERT>" $1 | wc -l)
+        if [ $prevalert -eq 0 ]; then
+          echo "9900000"
+        else
+          prevfail=$(grep "<ALERT>" $1 | sed 's/<ALERT>//' | tail -1)
+          echo "$(($timestamp - $prevfail))"
+        fi
       else
         echo "0"
       fi
 }
 
+checkCurrentFailTimes()
+{
+  if [ -f $1 ]; then
+    wc -l $1 | cut -f 1 -d ' '
+  else
+    echo 0
+  fi
+}
 ######################### Call #######################################
 
 parallel-ssh -h vl.clients  -o free  -i free > /dev/null 2> /dev/null
@@ -40,7 +53,10 @@ for f in free/*; do
     pc=$(echo $f | sed 's/^.*\///')
     error=1
     success=$(wc -l $f | cut -f 1 -d ' ')
-    logfile=$(echo $logs/$pc)
+    logfile=$(echo $logs_directory/$pc)
+    logwaitingfile=$(echo $logfile.wait)
+    interval=$(checkPrevFailInterval $logfile)
+    errortime=$(checkCurrentFailTimes $logwaitingfile)
 
     if [ $success -eq 0 ]; then
       echo "--------" >> out.tmp
@@ -65,36 +81,46 @@ for f in free/*; do
             echo "RAM ALERT FOR $pc" >> out.tmp
             echo "Used swap      = $usedSwapPerc%" >> out.tmp
             echo "Available ram  = $availableMemPerc" >> out.tmp
-
             error=0
-        else
-            # TODO
-            # check for prev fail
-            echo "--------"
-            echo "$pc OK!"
+        # else
+        #     echo "--------"
+        #     echo "$pc OK!"
         fi
     fi
 
     if [ $error -eq 0 ]; then
-      interval=$(checkPrevFailInterval $logfile)
-      echo "--------" >> $logfile
+            echo "--------" >> $logfile
       if [[ $interval -ge $notification_interval  ||  $interval -eq 0 ]]; then
-        echo "<ALERT>$timestamp" >> $logfile
-        notification=1
+        if [ $errortime -eq 0 ]; then
+          echo "." > $logwaitingfile
+          echo "<new-error>$timestamp" >> $logfile
+        elif [ $errortime -ge $wait_for_notification ]; then
+          echo "." >> $logwaitingfile
+          echo "<ALERT>$timestamp" >> $logfile
+          notification=1
+        else
+          echo "." >> $logwaitingfile
+          echo "<wait>$timestamp" >> $logfile
+        fi
       else
         echo "<log>$timestamp" >> $logfile
       fi
       echo $err_msg >> $logfile
       cat $f >> $logfile
+    else
+      if [ $errortime -ne 0 ]; then
+      notification=1
+      echo "$pc has recovered from previous error :)" >> out.tmp
+      rm $logwaitingfile
+      fi
     fi
-
 done
 
 ######################### Notify #####################################
 if [ $notification -eq 1 ]; then
   URL="https://api.telegram.org/bot$KEY/sendMessage"
   ALERTMSG=$(cat out.tmp)
-  curl -s --max-time $TIMEOUT -d "chat_id=$USERID&disable_web_page_preview=1&text=VACA INFORMA" $URL > /dev/null
+  curl -s --max-time $TIMEOUT -d "chat_id=$USERID&disable_web_page_preview=1&text=VACA DICE MOOOOO!" $URL > /dev/null
   curl -s --max-time $TIMEOUT -d "chat_id=$USERID&disable_web_page_preview=1&text=$ALERTMSG" $URL > /dev/null
 fi
 ######################## Cleaning######################################
