@@ -4,8 +4,8 @@
 
 ######################### Imports ####################################
 
-source vl.conf
-source vl.telegram.example
+source /home/seisbio/vaca-lite/vl.conf
+source /home/seisbio/vaca-lite/vl.telegram.example
 # FINAL LOCATION
 # source /opt/vaca-lite/vl.conf
 # source /opt/vaca-lite/vl.telegram
@@ -41,7 +41,7 @@ checkCurrentFailTimes()
 }
 ######################### Call #######################################
 
-parallel-ssh -h vl.clients  -o free  -i free > /dev/null 2> /dev/null
+parallel-ssh -h /home/seisbio/vaca-lite/vl.clients  -o /home/seisbio/vaca-lite/free  -i free > /dev/null 2> /dev/null
 # FINAL LOCATION
 # parallel-ssh -h vl.clients  -o /opt/vaca-lite/free  -i free -h
 
@@ -49,7 +49,7 @@ parallel-ssh -h vl.clients  -o free  -i free > /dev/null 2> /dev/null
 
 # FINAL LOCATION
 # for f in /opt/vaca-lite/freei/*; do
-for f in free/*; do
+for f in /home/seisbio/vaca-lite/free/*; do
     pc=$(echo $f | sed 's/^.*\///')
     error=1
     success=$(wc -l $f | cut -f 1 -d ' ')
@@ -82,9 +82,9 @@ for f in free/*; do
             echo "Used swap      = $usedSwapPerc%" >> out.tmp
             echo "Available ram  = $availableMemPerc" >> out.tmp
             error=0
-        # else
-        #     echo "--------"
-        #     echo "$pc OK!"
+#        else
+#            echo "--------"
+#            echo "$pc OK!"
         fi
     fi
 
@@ -108,10 +108,15 @@ for f in free/*; do
       echo $err_msg >> $logfile
       cat $f >> $logfile
     else
-      if [ $errortime -ne 0 ]; then
-      notification=1
-      echo "$pc has recovered from previous error :)" >> out.tmp
-      rm $logwaitingfile
+      if [ -f $logfile ]; then
+        oneTimeError=$(grep -E  "<.*>" $logfile | tail -1 | grep "new-error" && echo "1" || echo "0")
+      else
+        oneTimeError="1"
+      fi
+      if [[ $errortime -ne 0 && $oneTimeError -ne 0  ]]; then
+        notification=1
+        echo "$pc has recovered from previous error :)" >> out.tmp
+        rm $logwaitingfile
       fi
     fi
 done
@@ -120,7 +125,7 @@ done
 if [ $notification -eq 1 ]; then
   URL="https://api.telegram.org/bot$KEY/sendMessage"
   ALERTMSG=$(cat out.tmp)
-  curl -s --max-time $TIMEOUT -d "chat_id=$USERID&disable_web_page_preview=1&text=VACA DICE MOOOOO!" $URL > /dev/null
+  curl -s --max-time $TIMEOUT -d "chat_id=$USERID&disable_web_page_preview=1&text=VACA SAY MOO" $URL > /dev/null
   curl -s --max-time $TIMEOUT -d "chat_id=$USERID&disable_web_page_preview=1&text=$ALERTMSG" $URL > /dev/null
 fi
 ######################## Cleaning######################################
@@ -128,3 +133,5 @@ fi
 if [ -f out.tmp ];then
   rm out.tmp
 fi
+
+echo $timestamp >> /home/seisbio/vaca-lite/iteration-counter.txt
