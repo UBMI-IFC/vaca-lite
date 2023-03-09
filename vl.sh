@@ -34,7 +34,7 @@ checkPrevFailInterval()
 checkCurrentFailTimes()
 {
   if [ -f $1 ]; then
-    wc -l $1 | cut -f 1 -d ' '
+    wc -l $1 | cut -f 22 -d ' '
   else
     echo 0
   fi
@@ -82,9 +82,9 @@ for f in /home/seisbio/vaca-lite/free/*; do
             echo "Used swap      = $usedSwapPerc%" >> out.tmp
             echo "Available ram  = $availableMemPerc" >> out.tmp
             error=0
-#        else
-#            echo "--------"
-#            echo "$pc OK!"
+        else
+            echo "--------"
+            echo "$pc OK!"
         fi
     fi
 
@@ -108,19 +108,20 @@ for f in /home/seisbio/vaca-lite/free/*; do
       echo $err_msg >> $logfile
       cat $f >> $logfile
     else
-      if [ -f $logfile ]; then
-        oneTimeError=$(grep -E  "<.*>" $logfile | tail -1 | grep "new-error" && echo "1" || echo "0")
+      if [ -f $logfile ]; then 
+        grep -E  "<.*>" $logfile | tail -1 | grep "new-error" > /dev/null && oneTimeError="1" || oneTimeError="0"
       else
         oneTimeError="1"
       fi
-      if [[ $errortime -ne 0 && $oneTimeError -ne 0  ]]; then
+echo "errortime $errortime"
+echo "oneTimeError $oneTimeError"
+      if [ "$errortime" != "0" ] && [ "$oneTimeError" != "0" ]; then
         notification=1
         echo "$pc has recovered from previous error :)" >> out.tmp
         rm $logwaitingfile
       fi
     fi
 done
-
 ######################### Notify #####################################
 if [ $notification -eq 1 ]; then
   URL="https://api.telegram.org/bot$KEY/sendMessage"
