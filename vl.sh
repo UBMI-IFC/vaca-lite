@@ -34,7 +34,7 @@ checkPrevFailInterval()
 checkCurrentFailTimes()
 {
   if [ -f $1 ]; then
-    wc -l $1 | cut -f 22 -d ' '
+    wc -l $1 | cut -f 1 -d ' '
   else
     echo 0
   fi
@@ -109,9 +109,9 @@ for f in /home/seisbio/vaca-lite/free/*; do
       cat $f >> $logfile
     else
       if [ -f $logfile ]; then 
-        grep -E  "<.*>" $logfile | tail -1 | grep "new-error" > /dev/null && oneTimeError="1" || oneTimeError="0"
+        grep -E  "<.*>" $logfile | tail -1 | grep 'new-error\|wait' > /dev/null && oneTimeError="0" || oneTimeError="1"
       else
-        oneTimeError="1"
+        oneTimeError="0"
       fi
 echo "errortime $errortime"
 echo "oneTimeError $oneTimeError"
@@ -135,4 +135,3 @@ if [ -f out.tmp ];then
   rm out.tmp
 fi
 
-echo $timestamp >> /home/seisbio/vaca-lite/iteration-counter.txt
