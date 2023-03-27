@@ -41,7 +41,7 @@ checkCurrentFailTimes()
 }
 ######################### Call #######################################
 
-parallel-ssh -h /home/seisbio/vaca-lite/vl.clients  -o /home/seisbio/vaca-lite/free  -i free > /dev/null 2> /dev/null
+parallel-ssh -p 1 -t 3 -h /home/seisbio/vaca-lite/vl.clients  -o /home/seisbio/vaca-lite/free  -i free > /dev/null 2> /dev/null
 # FINAL LOCATION
 # parallel-ssh -h vl.clients  -o /opt/vaca-lite/free  -i free -h
 
@@ -89,15 +89,17 @@ for f in /home/seisbio/vaca-lite/free/*; do
     fi
 
     if [ $error -eq 0 ]; then
-            echo "--------" >> $logfile
+      echo "--------" >> $logfile
       if [[ $interval -ge $notification_interval  ||  $interval -eq 0 ]]; then
-        if [ $errortime -eq 0 ]; then
+        if [ $errortime -ge $wait_for_notification ]; then
+          echo "<ALERT>$timestamp" >> $logfile
+          if [ -f $logwaitingfile ]; then 
+            rm $logwaitingfile
+          fi
+          notification=1
+        elif [ $errortime -eq 0 ]; then
           echo "." > $logwaitingfile
           echo "<new-error>$timestamp" >> $logfile
-        elif [ $errortime -ge $wait_for_notification ]; then
-          echo "." >> $logwaitingfile
-          echo "<ALERT>$timestamp" >> $logfile
-          notification=1
         else
           echo "." >> $logwaitingfile
           echo "<wait>$timestamp" >> $logfile
@@ -109,16 +111,17 @@ for f in /home/seisbio/vaca-lite/free/*; do
       cat $f >> $logfile
     else
       if [ -f $logfile ]; then 
-        grep -E  "<.*>" $logfile | tail -1 | grep 'new-error\|wait' > /dev/null && oneTimeError="0" || oneTimeError="1"
+        grep -E  "<.*>" $logfile | tail -1 | grep 'new-error\|wait\|recovery' > /dev/null && oneTimeError="0" || oneTimeError="1"
       else
         oneTimeError="0"
       fi
 echo "errortime $errortime"
 echo "oneTimeError $oneTimeError"
-      if [ "$errortime" != "0" ] && [ "$oneTimeError" != "0" ]; then
+      if [ "$oneTimeError" != "0" ]; then
         notification=1
         echo "$pc has recovered from previous error :)" >> out.tmp
-        rm $logwaitingfile
+        echo "--------" >> $logfile
+        echo "<recovery>$timestamp" >> $logfile
       fi
     fi
 done
